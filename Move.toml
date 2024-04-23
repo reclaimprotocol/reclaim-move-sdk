@@ -1,0 +1,13 @@
+[package]
+name = "reclaim"
+version = "0.0.1"
+
+edition = "2024.alpha" # To use the Move 2024 edition, currently in alpha
+
+[dependencies]
+Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/testnet" }
+
+
+
+[addresses]
+reclaim =  "0x0"

@@ -13,14 +13,14 @@ module reclaim::reclaim {
 
     // Represents a witness in the system
     public struct Witness has store, copy, drop {
-        addr: string::String, // Address of the witness
+        addr: vector<u8>, // Address of the witness
         host: string::String, // Host information of the witness
     }
 
     // Represents an epoch in the system
     public struct Epoch has key, store {
         id: UID, // Unique identifier for the epoch
-        epoch_number: u128, // Epoch number
+        epoch_number: u8, // Epoch number
         timestamp_start: u64, // Start timestamp of the epoch
         timestamp_end: u64, // End timestamp of the epoch
         witnesses: vector<Witness>, // List of witnesses in the epoch
@@ -44,8 +44,8 @@ module reclaim::reclaim {
     public struct CompleteClaimData has store, copy, drop {
         identifier: string::String, // Claim identifier
         owner: string::String, // Claim owner
-        epoch: u64, // Epoch number of the claim
-        timestamp_s: u64, // Claim timestamp
+        epoch: string::String, // Epoch number of the claim
+        timestamp_s: string::String, // Claim timestamp
     }
 
     // Represents a proof
@@ -60,7 +60,7 @@ module reclaim::reclaim {
         id: UID, // Unique identifier for the Reclaim Manager
         owner: address, // Address of the Reclaim Manager owner
         epoch_duration_s: u32, // Duration of each epoch in seconds
-        current_epoch: u128, // Current epoch number
+        current_epoch: u8, // Current epoch number
         epochs: vector<Epoch>, // List of epochs
         // created_groups: Table<vector<u8>, bool>, // Table to store created groups
         merkelized_user_params: Table<vector<u8>, bool>, // Table to store merkelized user parameters
@@ -68,17 +68,58 @@ module reclaim::reclaim {
     }
 
     // Creates a new witness
-    public fun create_witness(addr: string::String, host: vector<u8>): Witness {
+    public fun create_witness(addr: vector<u8>, host: string::String): Witness {
         // Create a new witness object with the provided address and host information
         Witness {
             addr,
-            host: string::utf8(host),
+            host,
         }
+    }
+
+    // Creates a new claim info
+    public fun create_claim_info(provider: string::String, parameters: string::String, context: string::String): ClaimInfo {
+        ClaimInfo {
+            provider,
+            parameters,
+            context,
+        }
+    }
+
+    // Creates a new complete claim data
+    public fun create_claim_data(identifier: string::String, owner: string::String, epoch: string::String, timestamp_s: string::String): CompleteClaimData {
+        CompleteClaimData {
+            identifier,
+            owner,
+            epoch,
+            timestamp_s
+        }
+    }
+
+    // Creates a new signed claim
+    public fun create_signed_claim(claim: CompleteClaimData, signatures: vector<vector<u8>>): SignedClaim {
+        SignedClaim {
+            claim,
+            signatures,
+        }
+    }
+
+    // Creates a new proof
+    public fun create_proof(
+        claim_info: ClaimInfo,
+        signed_claim: SignedClaim,
+        ctx: &mut TxContext,
+    ) {
+        // Create a new proof object with the provided claim information and signed claim
+        transfer::share_object(Proof {
+            id: object::new(ctx),
+            claim_info,
+            signed_claim,
+        })
     }
 
     // Creates a new epoch
     public fun create_epoch(
-        epoch_number: u128,
+        epoch_number: u8,
         timestamp_start: u64,
         timestamp_end: u64,
         witnesses: vector<Witness>, // List of witnesses
@@ -96,37 +137,22 @@ module reclaim::reclaim {
         }
     }
 
-    // Creates a new proof
-    public fun create_proof(
-        claim_info: ClaimInfo,
-        signed_claim: SignedClaim,
-        ctx: &mut TxContext,
-    ): Proof {
-        // Create a new proof object with the provided claim information and signed claim
-        Proof {
-            id: object::new(ctx),
-            claim_info,
-            signed_claim,
-        }
-    }
-
     // Creates a new Reclaim Manager
     public fun create_reclaim_manager(
-        owner: address,
         epoch_duration_s: u32,
         ctx: &mut TxContext,
-    ): ReclaimManager {
+    ) {
         // Create a new Reclaim Manager object with the provided details
-        ReclaimManager {
+        transfer::share_object(ReclaimManager {
             id: object::new(ctx),
-            owner,
+            owner: tx_context::sender(ctx),
             epoch_duration_s,
             current_epoch: 0,
             epochs: vector::empty(),
             // created_groups: table::new(ctx),
             merkelized_user_params: table::new(ctx),
             dapp_id_to_external_nullifier: table::new(ctx),
-        }
+        })
     }
 
     // Adds a new epoch to the Reclaim Manager
@@ -182,7 +208,7 @@ module reclaim::reclaim {
     public fun verify_proof(
         manager: &ReclaimManager,
         proof: &Proof,
-    ): bool {
+    ): vector<vector<u8>> {
         // Create signed claim using claimData and signature
         assert!(vector::length(&proof.signed_claim.signatures) > 0, 0); // No signatures
 
@@ -191,15 +217,14 @@ module reclaim::reclaim {
             signatures: proof.signed_claim.signatures,
         };
 
-        // Check if the hash from the claimInfo is equal to the infoHash in the claimData
-       let hashed = hash_claim_info(proof.claim_info);
-       assert!(proof.signed_claim.claim.identifier == hashed.to_string(), 0);
+        // @TODO Check if the hash from the claimInfo is equal to the infoHash in the claimData
+        // let hashed = hash_claim_info(proof.claim_info);
+        //assert!(proof.signed_claim.claim.identifier == hashed, 0);
 
         // Fetch witness list from fetchEpoch(_epoch).witnesses
        let expected_witnesses = fetch_witnesses_for_claim(
                     manager,
                     proof.signed_claim.claim.identifier,
-                    proof.signed_claim.claim.epoch
         );
 
 
@@ -222,7 +247,7 @@ module reclaim::reclaim {
             i = i + 1;
         };
 
-        true
+        signed_witnesses
         // // @TODO: Check if the providerHash is in the list of providers
         // let proof_provider_hash = extract_field_from_context(proof.claim_info.context, string::utf8(b"\"providerHash\":\""));
         // let i = 0;
@@ -232,8 +257,6 @@ module reclaim::reclaim {
         //     };
         //     i = i + 1;
         // };
-
-        // false // No valid providerHash
     }
 
     // Helper functions
@@ -241,9 +264,8 @@ module reclaim::reclaim {
     fun fetch_witnesses_for_claim(
         manager: &ReclaimManager,
         identifier: string::String,
-        epoch: u64
-    ): vector<string::String> {
-        let epoch_data = fetch_epoch(manager, epoch);
+    ): vector<vector<u8>> {
+        let epoch_data = fetch_epoch(manager);
         let mut complete_input = b"".to_string();
         complete_input.append(identifier);
 
@@ -278,23 +300,28 @@ module reclaim::reclaim {
         hash::keccak256(string::bytes(&user_params))
     }
 
-    fun hash_claim_info(claim_info: ClaimInfo): vector<u8> {
-        let mut claim_info_data = b"".to_string();
-        claim_info_data.append(claim_info.provider);
-        claim_info_data.append(claim_info.parameters);
-        claim_info_data.append(claim_info.context);
+    // fun hash_claim_info(claim_info: ClaimInfo): vector<u8> {
+    //     let mut claim_info_data = b"".to_string();
+    //     let endl = b"\n".to_string();
 
-        hash::keccak256(string::bytes(&claim_info_data))
-    }
+    //     claim_info_data.append(claim_info.provider);
+    //     claim_info_data.append(endl);
+    //     claim_info_data.append(claim_info.parameters);
+    //     claim_info_data.append(endl);
+    //     claim_info_data.append(claim_info.context);
 
-    fun recover_signers_of_signed_claim(signed_claim: SignedClaim): vector<string::String> {
-        let mut expected = vector<string::String>[];
+    //     hash::keccak256(string::bytes(&claim_info_data))
+    // }
+
+    fun recover_signers_of_signed_claim(signed_claim: SignedClaim): vector<vector<u8>> {
+        let mut expected = vector<vector<u8>>[];
         let endl = b"\n".to_string();
         let mut message = b"".to_string();
 
-        let mut complete_claim_data_padding = vector[signed_claim.claim.timestamp_s as u8].to_string();
+        let mut complete_claim_data_padding = signed_claim.claim.timestamp_s;
         complete_claim_data_padding.append(endl);
-        complete_claim_data_padding.append(vector[signed_claim.claim.epoch as u8].to_string());
+        complete_claim_data_padding.append(signed_claim.claim.epoch);
+
         message.append(signed_claim.claim.identifier);
         message.append(endl);
         message.append(signed_claim.claim.owner);
@@ -308,17 +335,16 @@ module reclaim::reclaim {
         let msg = string::bytes(&eth_msg);
         
         let i = 0;
-        while (i < vector::length(&signed_claim.signatures)){
         let signature = signed_claim.signatures[i];
-        let addr = ecdsa::ecrecover_to_eth_address(signature, *msg).to_string();
+        let addr = ecdsa::ecrecover_to_eth_address(signature, *msg);
         vector::push_back(&mut expected, addr);
-        };
+        
 
         expected
     }
 
-    public fun fetch_epoch(manager: &ReclaimManager, epoch: u64): &Epoch {
-        vector::borrow(&manager.epochs, epoch)
+    public fun fetch_epoch(manager: &ReclaimManager): &Epoch {
+        vector::borrow(&manager.epochs, (manager.current_epoch - 1) as u64)
     }
 
 }

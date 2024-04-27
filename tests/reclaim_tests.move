@@ -72,8 +72,6 @@ module reclaim::reclaim_tests {
     {
       let manager = test_scenario::take_shared<reclaim::ReclaimManager>(scenario);
       let proof = test_scenario::take_shared<reclaim::Proof>(scenario);
-
-      // std::debug::print(&proof);
       
       let signers = reclaim::verify_proof(&manager, &proof);
       assert!(signers == vector[x"244897572368eadf65bfbc5aec98d8e5443a9072"], 0);
@@ -82,9 +80,6 @@ module reclaim::reclaim_tests {
       test_scenario::return_shared(proof);
     };
     
-    // reclaim::destruct_manager(manager);
-    // let reclaim::ReclaimManager {id, owner, epoch_duration_s, current_epoch,
-    // epochs, merkelized_user_params, dapp_id_to_external_nullifier} = manager;
     test_scenario::end(scenario_val);
   }
 }

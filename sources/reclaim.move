@@ -204,6 +204,57 @@ module reclaim::reclaim {
         table::contains(&manager.merkelized_user_params, user_params_hash)
     }
 
+    // Extracts a field from the context
+    // // @TODO: Test for providerHash utility
+    // fun extract_field_from_context(data: string::String, target: string::String): string::String {
+    // let data_bytes = string::bytes(&data);
+    // let target_bytes = string::bytes(&target);
+    // assert!(*vector::borrow(data_bytes, 0) == *vector::borrow(target_bytes, 0), 0); // target is longer than data
+
+    // let start = 0;
+    // let found_start = false;
+
+    // // Find start of "contextMessage":"
+    // let i = 0;
+    // while (i <= vector::length(data_bytes) - vector::length(target_bytes)) {
+    //     let is_match = true;
+    //     let j = 0;
+    //     while (j < vector::length(target_bytes) && is_match) {
+    //         if (*vector::borrow(data_bytes, i + j) != *vector::borrow(target_bytes, j)) {
+    //             is_match = false;
+    //         };
+    //         j = j + 1;
+    //     };
+    //     if (is_match) {
+    //         start = i + vector::length(target_bytes); // Move start to the end of "contextMessage":"
+    //         found_start = true;
+    //         break;
+    //     };
+    //     i = i + 1;
+    // };
+    // if (!found_start) {
+    //     string::utf8(vector::empty()) // Malformed
+    // } else {
+    //     // Find the end of the message, assuming it ends with a quote not preceded by a backslash
+    //     let end = start;
+    //     while (end < vector::length(&data_bytes) && !(*vector::borrow(&data_bytes, end) == b""" && *vector::borrow(&data_bytes, end - 1) != b"\\")) {
+    //         end = end + 1;
+    //     };
+
+    //     if (end <= start) {
+    //         string::utf8(vector::empty()) // Malformed or missing message
+    //     } else {
+    //         let context_message = vector::empty();
+    //         vector::reserve(&mut context_message, end - start);
+    //         while (start < end) {
+    //             vector::push_back(&mut context_message, *vector::borrow(data_bytes, start));
+    //             start = start + 1;
+    //         };
+    //         string::utf8(context_message)
+    //         }
+    //     }
+    // }
+
     // Verifies a proof
     public fun verify_proof(
         manager: &ReclaimManager,
@@ -334,12 +385,14 @@ module reclaim::reclaim {
         eth_msg.append(message);
         let msg = string::bytes(&eth_msg);
         
-        let i = 0;
-        let signature = signed_claim.signatures[i];
-        let addr = ecdsa::ecrecover_to_eth_address(signature, *msg);
-        vector::push_back(&mut expected, addr);
+        let mut i = 0;
+        while ( i < vector::length(&signed_claim.signatures)){
+            let signature = signed_claim.signatures[i];
+            let addr = ecdsa::ecrecover_to_eth_address(signature, *msg);
+            vector::push_back(&mut expected, addr);
+            i = i + 1
+        };
         
-
         expected
     }
 

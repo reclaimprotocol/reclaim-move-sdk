@@ -17,4 +17,4 @@ sui client publish --gas-budget 100000000
 
 
 
-https://suiexplorer.com/object/0x0e290c9fa1782b574bcff675f0c9f87c5bd97d55b225a497766768901aeaa9eb?network=devnet
+https://devnet.suivision.xyz/package/0x70be522721fcffc7f7122496c6bc7588f40beff039ac99d327acecc62560ddf0

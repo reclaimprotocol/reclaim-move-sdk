@@ -23,7 +23,7 @@ module reclaim::reclaim {
         epoch_number: u8, // Epoch number
         timestamp_start: u64, // Start timestamp of the epoch
         timestamp_end: u64, // End timestamp of the epoch
-        witnesses: vector<Witness>, // List of witnesses in the epoch
+        witnesses: vector<vector<u8>>, // List of witnesses in the epoch
         minimum_witnesses_for_claim_creation: u128, // Minimum number of witnesses required for claim creation
     }
 
@@ -68,12 +68,13 @@ module reclaim::reclaim {
     }
 
     // Creates a new witness
-    public fun create_witness(addr: vector<u8>, host: string::String): Witness {
+    public fun create_witness(addr: vector<u8>, host: string::String): vector<u8> {
         // Create a new witness object with the provided address and host information
-        Witness {
+        let witness = Witness {
             addr,
             host,
-        }
+        };
+        witness.addr
     }
 
     // Creates a new claim info
@@ -122,7 +123,7 @@ module reclaim::reclaim {
         epoch_number: u8,
         timestamp_start: u64,
         timestamp_end: u64,
-        witnesses: vector<Witness>, // List of witnesses
+        witnesses: vector<vector<u8>>, // List of witnesses
         minimum_witnesses_for_claim_creation: u128,
         ctx: &mut TxContext,
     ): Epoch {
@@ -158,7 +159,7 @@ module reclaim::reclaim {
     // Adds a new epoch to the Reclaim Manager
     public fun add_new_epoch(
         manager: &mut ReclaimManager,
-        witnesses: vector<Witness>,
+        witnesses: vector<vector<u8>>,
         requisite_witnesses_for_claim_create: u128,
         ctx: &mut TxContext,
     ) {
@@ -334,7 +335,7 @@ module reclaim::reclaim {
             let random_seed = complete_hash[0] as u64 + byte_offset;
             let witness_index = random_seed % witnesses_left;
             let witness = vector::remove(&mut witnesses_left_list, witness_index);
-            vector::push_back(&mut selected_witnesses, witness.addr);
+            vector::push_back(&mut selected_witnesses, witness);
 
             byte_offset = (byte_offset + 4) % vector::length(&complete_hash);
             witnesses_left = witnesses_left - 1;

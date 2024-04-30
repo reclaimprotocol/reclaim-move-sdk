@@ -20,7 +20,7 @@ module reclaim::reclaim_tests {
 
     test_scenario::next_tx(scenario, owner);
     {
-      let mut witnesses = vector<reclaim::Witness>[];
+      let mut witnesses = vector<vector<u8>>[];
       let witness = reclaim::create_witness(
           x"244897572368eadf65bfbc5aec98d8e5443a9072",
           b"http".to_string());

@@ -19,8 +19,8 @@ sui client publish --gas-budget 100000000
 
 ### Mainnet
 
-https://suivision.xyz/package/0x12baf5c4bd86e0ce31ba0c783c0db749221e9b73b89a7d65191c4f1d0ae53029
+https://suivision.xyz/package/0xbfd81ff7150e0e85be1daab249353b887f78b9b076c78675a8b09311e4cd2089
 
 ### Devnet
 
-https://devnet.suivision.xyz/package/0x8fa1599bfebfbb12b707bd9db2358b29a7765cd35d581fcbcb0e6b85f3954c58
+https://devnet.suivision.xyz/package/0xf476a131624dc8bbc380590915371e8bcd91b524ba7691f148239277cecb628e

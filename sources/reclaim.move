@@ -69,16 +69,6 @@ module reclaim::reclaim {
         dapp_id_to_external_nullifier: Table<vector<u8>, vector<u8>>, // Table to map dapp IDs to external nullifiers
     }
 
-    // Creates a new witness
-    public fun create_witness(addr: vector<u8>, host: string::String): vector<u8> {
-        // Create a new witness object with the provided address and host information
-        let witness = Witness {
-            addr,
-            host,
-        };
-        witness.addr
-    }
-
     // Creates a new claim info
     public fun create_claim_info(provider: string::String, parameters: string::String, context: string::String): ClaimInfo {
         ClaimInfo {
@@ -221,8 +211,8 @@ module reclaim::reclaim {
         proof.claim_info.provider
     }
 
-    // Gets the merkellized user params
-    public fun get_merkellized_user_params(manager: &ReclaimManager, provider: string::String, params: string::String): bool {
+    // Checks if the merkellized user params exist
+    public fun has_merkellized_user_params(manager: &ReclaimManager, provider: string::String, params: string::String): bool {
         let user_params_hash = hash_user_params(provider, params);
         table::contains(&manager.merkelized_user_params, user_params_hash)
     }
@@ -360,10 +350,7 @@ module reclaim::reclaim {
         identifier: string::String,
     ): vector<vector<u8>> {
         let epoch_data = fetch_epoch(manager);
-        let mut complete_input = b"".to_string();
-        complete_input.append(identifier);
-
-        let complete_hash = hash::keccak256(string::bytes(&complete_input));
+        let complete_hash = hash::keccak256(string::bytes(&identifier));
 
         let mut witnesses_left_list = epoch_data.witnesses;
         let mut selected_witnesses = vector::empty();

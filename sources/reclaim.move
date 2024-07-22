@@ -408,6 +408,7 @@ module reclaim::reclaim {
     fun hash_user_params(provider: string::String, params: string::String): vector<u8> {
         let mut user_params = b"".to_string();
         user_params.append(provider);
+        user_params.append(b":".to_string());
         user_params.append(params);
         hash::keccak256(string::bytes(&user_params))
     }

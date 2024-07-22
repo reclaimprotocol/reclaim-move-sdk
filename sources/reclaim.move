@@ -386,16 +386,24 @@ module reclaim::reclaim {
             };
 
             let witness_index = random_seed % witnesses_left;
-            let witness = vector::remove(&mut witnesses_left_list, witness_index);
+            let witness = *vector::borrow(&witnesses_left_list, witness_index);
+
+            // Swap the last element with the one to be removed and then remove the last element
+            let last_index = witnesses_left - 1;
+            if (witness_index != last_index) {
+                vector::swap(&mut witnesses_left_list, witness_index, last_index);
+            };
+            let _ = vector::pop_back(&mut witnesses_left_list);
+
             vector::push_back(&mut selected_witnesses, witness);
 
-            byte_offset = (byte_offset + 4) % vector::length(&complete_hash);
+            byte_offset = (byte_offset + 4) % complete_hash_len;
             witnesses_left = witnesses_left - 1;
             i = i + 1;
         };
 
         selected_witnesses
-}
+    }
 
     fun hash_user_params(provider: string::String, params: string::String): vector<u8> {
         let mut user_params = b"".to_string();

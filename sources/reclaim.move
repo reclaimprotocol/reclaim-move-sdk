@@ -282,9 +282,10 @@ module reclaim::reclaim {
             signatures: proof.signed_claim.signatures,
         };
 
-        //Check if the hash from the claimInfo is equal to the infoHash in the claimData
-        // let hashed = hash_claim_info(&proof.claim_info);
-        // assert!(string::equal(&proof.signed_claim.claim.identifier, &string::utf8(hashed)), 0);
+
+        let identifier = string::substring(&proof.signed_claim.claim.identifier, 2, string::length(&proof.signed_claim.claim.identifier));
+        let hashed = hash_claim_info(&proof.claim_info);
+        assert!(hashed == identifier, 1);
 
         // Fetch witness list from fetchEpoch(_epoch).witnesses
        let expected_witnesses = fetch_witnesses_for_claim(
@@ -399,13 +400,41 @@ module reclaim::reclaim {
         user_params.append(params);
         hash::keccak256(string::bytes(&user_params))
     }
+    
 
-    fun hash_claim_info(claim_info: &ClaimInfo): vector<u8> {
+    fun byte_to_hex_char(byte: u8): u8 {
+        if (byte < 10) {
+            
+            byte + 48 // '0' is 48 in ASCII
+        } else {
+            byte + 87 // 'a' is 97 in ASCII, 97 - 10 = 87
+        }
+    }
+
+     public fun bytes_to_hex(bytes: &vector<u8>): string::String {
+        let mut hex_string = vector::empty<u8>();
+        let mut i = 0;
+        while (i < vector::length(bytes)) {
+            let byte = *vector::borrow(bytes, i);
+            let high_nibble = (byte >> 4) & 0x0F;
+            let low_nibble = byte & 0x0F;
+            vector::push_back(&mut hex_string, byte_to_hex_char(high_nibble));
+            vector::push_back(&mut hex_string, byte_to_hex_char(low_nibble));
+            i = i + 1;
+        };
+        string::utf8(hex_string)
+    }
+
+
+    fun hash_claim_info(claim_info: &ClaimInfo): string::String {
         let mut claim_info_data = claim_info.provider;
+        claim_info_data.append(b"\n".to_string());
         claim_info_data.append(claim_info.parameters);
+        claim_info_data.append(b"\n".to_string());
         claim_info_data.append(claim_info.context);
 
-        hash::keccak256(string::bytes(&claim_info_data))
+        let hash_bytes = hash::keccak256(string::bytes(&claim_info_data));
+        bytes_to_hex(&hash_bytes)
     }
 
     fun recover_signers_of_signed_claim(signed_claim: SignedClaim): vector<vector<u8>> {

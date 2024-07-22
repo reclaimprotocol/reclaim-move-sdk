@@ -352,8 +352,18 @@ module reclaim::reclaim {
 
         let mut byte_offset = 0;
         let mut i = 0;
+        let complete_hash_len = vector::length(&complete_hash);
         while (i < minimum_witnesses) {
-            let random_seed = complete_hash[0] as u64 + byte_offset;
+            // Extract four bytes at byte_offset from complete_hash
+            let mut random_seed = 0;
+            let mut j = 0;
+            while (j < 4) {
+                let byte_index = (byte_offset + j) % complete_hash_len;
+                let byte_value = *vector::borrow(&complete_hash, byte_index) as u64;
+                random_seed =  (byte_value << ((8 * j as u8)));
+                j = j + 1;
+            };
+
             let witness_index = random_seed % witnesses_left;
             let witness = vector::remove(&mut witnesses_left_list, witness_index);
             vector::push_back(&mut selected_witnesses, witness);

@@ -281,6 +281,7 @@ module reclaim::reclaim {
 
 
         let signed_witnesses = recover_signers_of_signed_claim(signed_claim);
+        assert!(!contains_duplicates(&signed_witnesses), 0); // Contains duplicate signatures
         assert!(vector::length(&signed_witnesses) == vector::length(&expected_witnesses), 0); // Number of signatures not equal to number of witnesses
 
         // Update awaited: more checks on whose signatures can be considered
@@ -311,8 +312,28 @@ module reclaim::reclaim {
         // };
     }
 
-    // Helper functions
 
+    // Helper function to check for duplicates in a vector
+    fun contains_duplicates(vec: &vector<vector<u8>>): bool {
+        let mut seen = vector::empty<vector<u8>>();
+        let mut i = 0;
+        while (i < vector::length(vec)) {
+            let item = vector::borrow(vec, i);
+            let mut j = 0;
+            while (j < vector::length(&seen)) {
+                if (*item == *vector::borrow(&seen, j)) {
+                    return true
+                };
+                j = j + 1;
+            };
+            vector::push_back(&mut seen, *item);
+            i = i + 1;
+        };
+        false
+    }
+
+
+    // Helper functions
     fun fetch_witnesses_for_claim(
         manager: &ReclaimManager,
         identifier: string::String,

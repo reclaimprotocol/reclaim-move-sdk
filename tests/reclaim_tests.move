@@ -72,8 +72,8 @@ module reclaim::reclaim_tests {
     {
       let manager = test_scenario::take_shared<reclaim::ReclaimManager>(scenario);
       let proof = test_scenario::take_shared<reclaim::Proof>(scenario);
-      
-      let signers = reclaim::verify_proof(&manager, &proof);
+      let ctx = test_scenario::ctx(scenario); 
+      let signers = reclaim::verify_proof(&manager, &proof, ctx);
       assert!(signers == vector[x"244897572368eadf65bfbc5aec98d8e5443a9072"], 0);
 
       test_scenario::return_shared(manager);

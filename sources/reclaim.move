@@ -282,6 +282,7 @@ module reclaim::reclaim {
     public fun verify_proof(
         manager: &ReclaimManager,
         proof: &Proof,
+        ctx: &mut TxContext,
     ): vector<vector<u8>> {
         // Create signed claim using claimData and signature
         assert!(vector::length(&proof.signed_claim.signatures) > 0, 0); // No signatures
@@ -301,26 +302,24 @@ module reclaim::reclaim {
                     proof.signed_claim.claim.identifier,
         );
 
-
         let signed_witnesses = recover_signers_of_signed_claim(signed_claim);
         assert!(!contains_duplicates(&signed_witnesses), 0); // Contains duplicate signatures
         assert!(vector::length(&signed_witnesses) == vector::length(&expected_witnesses), 0); // Number of signatures not equal to number of witnesses
 
-        // Update awaited: more checks on whose signatures can be considered
+        // Create a table for expected witnesses for efficient lookup
+        let mut expected_witnesses_table = table::new<vector<u8>, bool>(ctx);
         let mut i = 0;
-        while (i < vector::length(&signed_witnesses)) {
-            let mut found = false;
-            let mut j = 0;
-            while (j < vector::length(&expected_witnesses)) {
-                if (*vector::borrow(&signed_witnesses, i) == *vector::borrow(&expected_witnesses, j)) {
-                    found = true;
-                    break
-                };
-                j = j + 1;
-            };
-            assert!(found, 0); // Signature not appropriate
+        while (i < vector::length(&expected_witnesses)) {
+            table::add(&mut expected_witnesses_table, *vector::borrow(&expected_witnesses, i), true);
             i = i + 1;
         };
+        // Check if all signed witnesses are in the expected witnesses table
+        i = 0;
+        while (i < vector::length(&signed_witnesses)) {
+            assert!(table::remove(&mut expected_witnesses_table, *vector::borrow(&signed_witnesses, i)), 0); // Signature not appropriate
+            i = i + 1;
+        };
+        table::destroy_empty(expected_witnesses_table); // Destroy the table after use
 
         signed_witnesses
         // // @TODO: Check if the providerHash is in the list of providers
@@ -336,7 +335,7 @@ module reclaim::reclaim {
 
 
     // Helper function to check for duplicates in a vector
-    fun contains_duplicates(vec: &vector<vector<u8>>): bool {
+   fun contains_duplicates(vec: &vector<vector<u8>>): bool {
         let mut seen = vector::empty<vector<u8>>();
         let mut i = 0;
         while (i < vector::length(vec)) {

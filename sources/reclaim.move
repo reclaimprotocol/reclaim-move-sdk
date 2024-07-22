@@ -10,6 +10,8 @@ module reclaim::reclaim {
     use sui::table::{Self, Table};
     use sui::hash;
     use reclaim::ecdsa;
+    use sui::bcs;
+
 
     // Represents a witness in the system
     public struct Witness has store, copy, drop {
@@ -187,12 +189,32 @@ module reclaim::reclaim {
     }
 
     // Creates a new Dapp
-    public fun create_dapp(manager: &mut ReclaimManager, id: vector<u8>) {
-        let dapp_id = hash::keccak256(&vector::empty<u8>());
+    public fun create_dapp(manager: &mut ReclaimManager, id: vector<u8>, ctx: &mut TxContext) {
+        let sender_address = tx_context::sender(ctx);
+        let mut combined = vector::empty<u8>();
+        
+        // Append sender address bytes
+        let sender_bytes = bcs::to_bytes(&sender_address);
+        let mut i = 0;
+        while (i < vector::length(&sender_bytes)) {
+            vector::push_back(&mut combined, *vector::borrow(&sender_bytes, i));
+            i = i + 1;
+        };
+        
+        // Append id bytes
+        i = 0;
+        while (i < vector::length(&id)) {
+            vector::push_back(&mut combined, *vector::borrow(&id, i));
+            i = i + 1;
+        };
+
+        // Generate the dapp_id using keccak256 hash
+        let dapp_id = hash::keccak256(&combined);
         assert!(!table::contains(&manager.dapp_id_to_external_nullifier, dapp_id), 0);
         table::add(&mut manager.dapp_id_to_external_nullifier, dapp_id, id);
-        //event::emit(DappCreated { dapp_id });
+        // event::emit(DappCreated { dapp_id });
     }
+
 
     // Gets the provider name from the proof
     public fun get_provider_from_proof(proof: &Proof): string::String {
@@ -269,9 +291,9 @@ module reclaim::reclaim {
             signatures: proof.signed_claim.signatures,
         };
 
-        // @TODO Check if the hash from the claimInfo is equal to the infoHash in the claimData
-        // let hashed = hash_claim_info(proof.claim_info);
-        //assert!(proof.signed_claim.claim.identifier == hashed, 0);
+        //Check if the hash from the claimInfo is equal to the infoHash in the claimData
+        // let hashed = hash_claim_info(&proof.claim_info);
+        // assert!(string::equal(&proof.signed_claim.claim.identifier, &string::utf8(hashed)), 0);
 
         // Fetch witness list from fetchEpoch(_epoch).witnesses
        let expected_witnesses = fetch_witnesses_for_claim(
@@ -383,18 +405,13 @@ module reclaim::reclaim {
         hash::keccak256(string::bytes(&user_params))
     }
 
-    // fun hash_claim_info(claim_info: ClaimInfo): vector<u8> {
-    //     let mut claim_info_data = b"".to_string();
-    //     let endl = b"\n".to_string();
+    fun hash_claim_info(claim_info: &ClaimInfo): vector<u8> {
+        let mut claim_info_data = claim_info.provider;
+        claim_info_data.append(claim_info.parameters);
+        claim_info_data.append(claim_info.context);
 
-    //     claim_info_data.append(claim_info.provider);
-    //     claim_info_data.append(endl);
-    //     claim_info_data.append(claim_info.parameters);
-    //     claim_info_data.append(endl);
-    //     claim_info_data.append(claim_info.context);
-
-    //     hash::keccak256(string::bytes(&claim_info_data))
-    // }
+        hash::keccak256(string::bytes(&claim_info_data))
+    }
 
     fun recover_signers_of_signed_claim(signed_claim: SignedClaim): vector<vector<u8>> {
         let mut expected = vector<vector<u8>>[];

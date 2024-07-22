@@ -21,10 +21,8 @@ module reclaim::reclaim_tests {
     test_scenario::next_tx(scenario, owner);
     {
       let mut witnesses = vector<vector<u8>>[];
-      let witness = reclaim::create_witness(
-          x"244897572368eadf65bfbc5aec98d8e5443a9072",
-          b"http".to_string());
-      witnesses.push_back(witness);
+      let witness_address = x"244897572368eadf65bfbc5aec98d8e5443a9072";
+      witnesses.push_back(witness_address);
 
       let requisite_witnesses_for_claim_create = 1_u128;
 

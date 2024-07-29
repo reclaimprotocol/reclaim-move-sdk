@@ -14,10 +14,10 @@ module reclaim::reclaim {
 
 
     // Represents a witness in the system
-    public struct Witness has store, copy, drop {
-        addr: vector<u8>, // Address of the witness
-        host: string::String, // Host information of the witness
-    }
+    // public struct Witness has store, copy, drop {
+    //     // addr: vector<u8>, // Address of the witness
+    //     host: string::String, // Host information of the witness
+    // }
 
     // Represents an epoch in the system
     public struct Epoch has key, store {
@@ -335,7 +335,7 @@ module reclaim::reclaim {
             let item = vector::borrow(vec, i);
             if (table::contains(&seen, *item)) {
                 has_duplicate = true;
-                break;
+                break
             };
             table::add(&mut seen, *item, true);
             i = i + 1;
@@ -361,7 +361,7 @@ module reclaim::reclaim {
         identifier: string::String,
     ): vector<vector<u8>> {
         let epoch_data = fetch_epoch(manager);
-        let complete_hash = hash::keccak256(string::bytes(&identifier));
+        let complete_hash = hash::keccak256(string::as_bytes(&identifier));
 
         let mut witnesses_left_list = epoch_data.witnesses;
         let mut selected_witnesses = vector::empty();
@@ -408,7 +408,7 @@ module reclaim::reclaim {
         user_params.append(provider);
         user_params.append(b":".to_string());
         user_params.append(params);
-        hash::keccak256(string::bytes(&user_params))
+        hash::keccak256(string::as_bytes(&user_params))
     }
     
 
@@ -443,7 +443,7 @@ module reclaim::reclaim {
         claim_info_data.append(b"\n".to_string());
         claim_info_data.append(claim_info.context);
 
-        let hash_bytes = hash::keccak256(string::bytes(&claim_info_data));
+        let hash_bytes = hash::keccak256(string::as_bytes(&claim_info_data));
         bytes_to_hex(&hash_bytes)
     }
 
@@ -466,7 +466,7 @@ module reclaim::reclaim {
 
         eth_msg.append(b"122".to_string());
         eth_msg.append(message);
-        let msg = string::bytes(&eth_msg);
+        let msg = string::as_bytes(&eth_msg);
         
         let mut i = 0;
         while ( i < vector::length(&signed_claim.signatures)){

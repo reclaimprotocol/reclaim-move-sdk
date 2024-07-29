@@ -3,7 +3,7 @@
 module reclaim::ecdsa_tests {
     use reclaim::ecdsa::ecrecover_to_eth_address;
     use sui::hash::keccak256;
-    use std::string::bytes;
+    use std::string::as_bytes;
     #[test]
     fun test_recover() {
         
@@ -19,7 +19,7 @@ module reclaim::ecdsa_tests {
         claim_info_data.append(endl);
         claim_info_data.append(context);
 
-        let hash = keccak256(bytes(&claim_info_data));
+        let hash = keccak256(as_bytes(&claim_info_data));
         assert!(hash == x"d1dcfc5338cb588396e44e6449e8c750bd4d76332c7e9440c92383382fced0fd", 0);
 
         let mut identifier = b"0xd1dcfc5338cb588396e44e6449e8c750bd4d76332c7e9440c92383382fced0fd".to_string();
@@ -47,7 +47,7 @@ module reclaim::ecdsa_tests {
 
         // let hasher = keccak256(bytes(&eth_msg));
 
-        let msg = bytes(&eth_msg);
+        let msg = as_bytes(&eth_msg);
         
         // std::debug::print(&hasher);
 

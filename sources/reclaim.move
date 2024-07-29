@@ -294,7 +294,7 @@ module reclaim::reclaim {
         );
 
         let signed_witnesses = recover_signers_of_signed_claim(signed_claim);
-        assert!(!contains_duplicates(&signed_witnesses), 0); // Contains duplicate signatures
+        assert!(!contains_duplicates(&signed_witnesses, ctx), 0); // Contains duplicate signatures
         assert!(vector::length(&signed_witnesses) == vector::length(&expected_witnesses), 0); // Number of signatures not equal to number of witnesses
 
         // Create a table for expected witnesses for efficient lookup
@@ -326,22 +326,32 @@ module reclaim::reclaim {
 
 
     // Helper function to check for duplicates in a vector
-   fun contains_duplicates(vec: &vector<vector<u8>>): bool {
-        let mut seen = vector::empty<vector<u8>>();
+    fun contains_duplicates(vec: &vector<vector<u8>>, ctx: &mut TxContext): bool {
+        let mut seen = table::new<vector<u8>, bool>(ctx);
         let mut i = 0;
+        let mut has_duplicate = false;
+
         while (i < vector::length(vec)) {
             let item = vector::borrow(vec, i);
-            let mut j = 0;
-            while (j < vector::length(&seen)) {
-                if (*item == *vector::borrow(&seen, j)) {
-                    return true
-                };
-                j = j + 1;
+            if (table::contains(&seen, *item)) {
+                has_duplicate = true;
+                break;
             };
-            vector::push_back(&mut seen, *item);
+            table::add(&mut seen, *item, true);
             i = i + 1;
         };
-        false
+
+        let mut j = 0;
+        while (j < vector::length(vec)) {
+            let entry = vector::borrow(vec, j);
+            if (table::contains(&seen, *entry)) {
+                table::remove(&mut seen, *entry);
+            };
+            j = j + 1;
+        };
+
+        table::destroy_empty(seen);
+        has_duplicate
     }
 
 

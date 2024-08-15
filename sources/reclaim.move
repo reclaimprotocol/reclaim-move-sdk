@@ -10,12 +10,14 @@ module reclaim::reclaim {
     use sui::table::{Self, Table};
     use sui::hash;
     use reclaim::ecdsa;
+    use sui::bcs;
+
 
     // Represents a witness in the system
-    public struct Witness has store, copy, drop {
-        addr: vector<u8>, // Address of the witness
-        host: string::String, // Host information of the witness
-    }
+    // public struct Witness has store, copy, drop {
+    //     // addr: vector<u8>, // Address of the witness
+    //     host: string::String, // Host information of the witness
+    // }
 
     // Represents an epoch in the system
     public struct Epoch has key, store {
@@ -65,16 +67,6 @@ module reclaim::reclaim {
         // created_groups: Table<vector<u8>, bool>, // Table to store created groups
         merkelized_user_params: Table<vector<u8>, bool>, // Table to store merkelized user parameters
         dapp_id_to_external_nullifier: Table<vector<u8>, vector<u8>>, // Table to map dapp IDs to external nullifiers
-    }
-
-    // Creates a new witness
-    public fun create_witness(addr: vector<u8>, host: string::String): vector<u8> {
-        // Create a new witness object with the provided address and host information
-        let witness = Witness {
-            addr,
-            host,
-        };
-        witness.addr
     }
 
     // Creates a new claim info
@@ -187,20 +179,40 @@ module reclaim::reclaim {
     }
 
     // Creates a new Dapp
-    public fun create_dapp(manager: &mut ReclaimManager, id: vector<u8>) {
-        let dapp_id = hash::keccak256(&vector::empty<u8>());
+    public fun create_dapp(manager: &mut ReclaimManager, id: vector<u8>, ctx: &mut TxContext) {
+        let sender_address = tx_context::sender(ctx);
+        let mut combined = vector::empty<u8>();
+        
+        // Append sender address bytes
+        let sender_bytes = bcs::to_bytes(&sender_address);
+        let mut i = 0;
+        while (i < vector::length(&sender_bytes)) {
+            vector::push_back(&mut combined, *vector::borrow(&sender_bytes, i));
+            i = i + 1;
+        };
+        
+        // Append id bytes
+        i = 0;
+        while (i < vector::length(&id)) {
+            vector::push_back(&mut combined, *vector::borrow(&id, i));
+            i = i + 1;
+        };
+
+        // Generate the dapp_id using keccak256 hash
+        let dapp_id = hash::keccak256(&combined);
         assert!(!table::contains(&manager.dapp_id_to_external_nullifier, dapp_id), 0);
         table::add(&mut manager.dapp_id_to_external_nullifier, dapp_id, id);
-        //event::emit(DappCreated { dapp_id });
+        // event::emit(DappCreated { dapp_id });
     }
+
 
     // Gets the provider name from the proof
     public fun get_provider_from_proof(proof: &Proof): string::String {
         proof.claim_info.provider
     }
 
-    // Gets the merkellized user params
-    public fun get_merkellized_user_params(manager: &ReclaimManager, provider: string::String, params: string::String): bool {
+    // Checks if the merkellized user params exist
+    public fun has_merkellized_user_params(manager: &ReclaimManager, provider: string::String, params: string::String): bool {
         let user_params_hash = hash_user_params(provider, params);
         table::contains(&manager.merkelized_user_params, user_params_hash)
     }
@@ -260,6 +272,7 @@ module reclaim::reclaim {
     public fun verify_proof(
         manager: &ReclaimManager,
         proof: &Proof,
+        ctx: &mut TxContext,
     ): vector<vector<u8>> {
         // Create signed claim using claimData and signature
         assert!(vector::length(&proof.signed_claim.signatures) > 0, 0); // No signatures
@@ -269,9 +282,10 @@ module reclaim::reclaim {
             signatures: proof.signed_claim.signatures,
         };
 
-        // @TODO Check if the hash from the claimInfo is equal to the infoHash in the claimData
-        // let hashed = hash_claim_info(proof.claim_info);
-        //assert!(proof.signed_claim.claim.identifier == hashed, 0);
+
+        let identifier = string::substring(&proof.signed_claim.claim.identifier, 2, string::length(&proof.signed_claim.claim.identifier));
+        let hashed = hash_claim_info(&proof.claim_info);
+        assert!(hashed == identifier, 1);
 
         // Fetch witness list from fetchEpoch(_epoch).witnesses
        let expected_witnesses = fetch_witnesses_for_claim(
@@ -279,25 +293,24 @@ module reclaim::reclaim {
                     proof.signed_claim.claim.identifier,
         );
 
-
         let signed_witnesses = recover_signers_of_signed_claim(signed_claim);
+        assert!(!contains_duplicates(&signed_witnesses, ctx), 0); // Contains duplicate signatures
         assert!(vector::length(&signed_witnesses) == vector::length(&expected_witnesses), 0); // Number of signatures not equal to number of witnesses
 
-        // Update awaited: more checks on whose signatures can be considered
+        // Create a table for expected witnesses for efficient lookup
+        let mut expected_witnesses_table = table::new<vector<u8>, bool>(ctx);
         let mut i = 0;
-        while (i < vector::length(&signed_witnesses)) {
-            let mut found = false;
-            let mut j = 0;
-            while (j < vector::length(&expected_witnesses)) {
-                if (*vector::borrow(&signed_witnesses, i) == *vector::borrow(&expected_witnesses, j)) {
-                    found = true;
-                    break
-                };
-                j = j + 1;
-            };
-            assert!(found, 0); // Signature not appropriate
+        while (i < vector::length(&expected_witnesses)) {
+            table::add(&mut expected_witnesses_table, *vector::borrow(&expected_witnesses, i), true);
             i = i + 1;
         };
+        // Check if all signed witnesses are in the expected witnesses table
+        i = 0;
+        while (i < vector::length(&signed_witnesses)) {
+            assert!(table::remove(&mut expected_witnesses_table, *vector::borrow(&signed_witnesses, i)), 0); // Signature not appropriate
+            i = i + 1;
+        };
+        table::destroy_empty(expected_witnesses_table); // Destroy the table after use
 
         signed_witnesses
         // // @TODO: Check if the providerHash is in the list of providers
@@ -311,17 +324,44 @@ module reclaim::reclaim {
         // };
     }
 
-    // Helper functions
 
+    // Helper function to check for duplicates in a vector
+    fun contains_duplicates(vec: &vector<vector<u8>>, ctx: &mut TxContext): bool {
+        let mut seen = table::new<vector<u8>, bool>(ctx);
+        let mut i = 0;
+        let mut has_duplicate = false;
+
+        while (i < vector::length(vec)) {
+            let item = vector::borrow(vec, i);
+            if (table::contains(&seen, *item)) {
+                has_duplicate = true;
+                break
+            };
+            table::add(&mut seen, *item, true);
+            i = i + 1;
+        };
+
+        let mut j = 0;
+        while (j < vector::length(vec)) {
+            let entry = vector::borrow(vec, j);
+            if (table::contains(&seen, *entry)) {
+                table::remove(&mut seen, *entry);
+            };
+            j = j + 1;
+        };
+
+        table::destroy_empty(seen);
+        has_duplicate
+    }
+
+
+    // Helper functions
     fun fetch_witnesses_for_claim(
         manager: &ReclaimManager,
         identifier: string::String,
     ): vector<vector<u8>> {
         let epoch_data = fetch_epoch(manager);
-        let mut complete_input = b"".to_string();
-        complete_input.append(identifier);
-
-        let complete_hash = hash::keccak256(string::bytes(&complete_input));
+        let complete_hash = hash::keccak256(string::as_bytes(&identifier));
 
         let mut witnesses_left_list = epoch_data.witnesses;
         let mut selected_witnesses = vector::empty();
@@ -331,39 +371,81 @@ module reclaim::reclaim {
 
         let mut byte_offset = 0;
         let mut i = 0;
+        let complete_hash_len = vector::length(&complete_hash);
         while (i < minimum_witnesses) {
-            let random_seed = complete_hash[0] as u64 + byte_offset;
+            // Extract four bytes at byte_offset from complete_hash
+            let mut random_seed = 0;
+            let mut j = 0;
+            while (j < 4) {
+                let byte_index = (byte_offset + j) % complete_hash_len;
+                let byte_value = *vector::borrow(&complete_hash, byte_index) as u64;
+                random_seed =  (byte_value << ((8 * j as u8)));
+                j = j + 1;
+            };
+
             let witness_index = random_seed % witnesses_left;
-            let witness = vector::remove(&mut witnesses_left_list, witness_index);
+            let witness = *vector::borrow(&witnesses_left_list, witness_index);
+
+            // Swap the last element with the one to be removed and then remove the last element
+            let last_index = witnesses_left - 1;
+            if (witness_index != last_index) {
+                vector::swap(&mut witnesses_left_list, witness_index, last_index);
+            };
+            let _ = vector::pop_back(&mut witnesses_left_list);
+
             vector::push_back(&mut selected_witnesses, witness);
 
-            byte_offset = (byte_offset + 4) % vector::length(&complete_hash);
+            byte_offset = (byte_offset + 4) % complete_hash_len;
             witnesses_left = witnesses_left - 1;
             i = i + 1;
         };
 
         selected_witnesses
-}
+    }
 
     fun hash_user_params(provider: string::String, params: string::String): vector<u8> {
         let mut user_params = b"".to_string();
         user_params.append(provider);
+        user_params.append(b":".to_string());
         user_params.append(params);
-        hash::keccak256(string::bytes(&user_params))
+        hash::keccak256(string::as_bytes(&user_params))
+    }
+    
+
+    fun byte_to_hex_char(byte: u8): u8 {
+        if (byte < 10) {
+            
+            byte + 48 // '0' is 48 in ASCII
+        } else {
+            byte + 87 // 'a' is 97 in ASCII, 97 - 10 = 87
+        }
     }
 
-    // fun hash_claim_info(claim_info: ClaimInfo): vector<u8> {
-    //     let mut claim_info_data = b"".to_string();
-    //     let endl = b"\n".to_string();
+     public fun bytes_to_hex(bytes: &vector<u8>): string::String {
+        let mut hex_string = vector::empty<u8>();
+        let mut i = 0;
+        while (i < vector::length(bytes)) {
+            let byte = *vector::borrow(bytes, i);
+            let high_nibble = (byte >> 4) & 0x0F;
+            let low_nibble = byte & 0x0F;
+            vector::push_back(&mut hex_string, byte_to_hex_char(high_nibble));
+            vector::push_back(&mut hex_string, byte_to_hex_char(low_nibble));
+            i = i + 1;
+        };
+        string::utf8(hex_string)
+    }
 
-    //     claim_info_data.append(claim_info.provider);
-    //     claim_info_data.append(endl);
-    //     claim_info_data.append(claim_info.parameters);
-    //     claim_info_data.append(endl);
-    //     claim_info_data.append(claim_info.context);
 
-    //     hash::keccak256(string::bytes(&claim_info_data))
-    // }
+    fun hash_claim_info(claim_info: &ClaimInfo): string::String {
+        let mut claim_info_data = claim_info.provider;
+        claim_info_data.append(b"\n".to_string());
+        claim_info_data.append(claim_info.parameters);
+        claim_info_data.append(b"\n".to_string());
+        claim_info_data.append(claim_info.context);
+
+        let hash_bytes = hash::keccak256(string::as_bytes(&claim_info_data));
+        bytes_to_hex(&hash_bytes)
+    }
 
     fun recover_signers_of_signed_claim(signed_claim: SignedClaim): vector<vector<u8>> {
         let mut expected = vector<vector<u8>>[];
@@ -384,7 +466,7 @@ module reclaim::reclaim {
 
         eth_msg.append(b"122".to_string());
         eth_msg.append(message);
-        let msg = string::bytes(&eth_msg);
+        let msg = string::as_bytes(&eth_msg);
         
         let mut i = 0;
         while ( i < vector::length(&signed_claim.signatures)){

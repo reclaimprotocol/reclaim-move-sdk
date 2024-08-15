@@ -7,7 +7,7 @@ sui move build
 
 ## Test
 ```bash
-sui move test -i 100000000000000000 
+sui move test 
 ```
 
 ## Publish

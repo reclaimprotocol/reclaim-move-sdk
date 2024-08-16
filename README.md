@@ -23,4 +23,4 @@ https://suivision.xyz/package/0xbfd81ff7150e0e85be1daab249353b887f78b9b076c78675
 
 ### Devnet
 
-https://devnet.suivision.xyz/package/0xf476a131624dc8bbc380590915371e8bcd91b524ba7691f148239277cecb628e
+https://devnet.suivision.xyz/package/0x77333b910c2cb6877c1d374258048537a59c4653945351e37c5929a6c7dd9143

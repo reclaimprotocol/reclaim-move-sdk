@@ -1,4 +1,8 @@
-# Reclaim - Move SDK
+<div>
+    <div>
+        <img src="https://raw.githubusercontent.com/reclaimprotocol/.github/main/assets/banners/Move-SDK.png"  />
+    </div>
+</div>
 
 ## Build
 ```bash
